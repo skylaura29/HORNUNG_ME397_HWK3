@@ -9,33 +9,36 @@ from pyomo.opt import SolverFactory
 
 ## constants and assumptions
 # capital costs for solar, and energy storage systems
-solar_cap_cost 			= 800       # $/kW
-ESS_p_cap_cost 			= 200       # $/kW
-ESS_e_cap_cost 			= 150       # $/kWh
+solar_cap_cost 			= 800e6       # $/GW
+wind_cap_cost           = 1200e6      # $/GW
+ESS_p_cap_cost 			= 200e6       # $/GW
+ESS_e_cap_cost 			= 150e6       # $/GWh
 
 # energy storage operational assumptions
-ESS_min_level    		= 0.20      # %, minimum level of discharge of the battery
-ESS_eta_c           	= 0.95      # ESS charging efficiency, looses 5% when charging
-ESS_eta_d        		= 0.9       # ESS discharging efficiency, looses 10% when discharging
-ESS_p_var_cost          = 0.005     # ESS discharge cost $/kWh
+ESS_min_level    		= 0.20        # %, minimum level of discharge of the battery
+ESS_eta_c           	= 0.95        # ESS charging efficiency, looses 5% when charging
+ESS_eta_d        		= 0.9         # ESS discharging efficiency, looses 10% when discharging
+ESS_p_var_cost          = 0.005e6     # ESS discharge cost $/GWh
 
-curtailment_cost        = 0.001     # curtailment penalty $/kWh
+curtailment_cost        = 0.001e6     # curtailment penalty $/GWh
 
-demand                  = 1000      # kW, how much power must the system deliver?
+#demand                  = 1000e6      # GW, how much power must the system deliver?
 
 # create the model
 model = AbstractModel(name = 'solar-storage model')
 
 # create model sets
 model.t                 = Set(initialize = [i for i in range(8760)], ordered=True)    
-model.tech              = Set(initialize =['s_cap', 'ESS_power_cap', 'ESS_energy_cap'], ordered=True)  
+model.tech              = Set(initialize = ['s_cap', 'w_cap', 'ESS_power_cap', 'ESS_energy_cap'], ordered=True)  
 
+model.demand            = Param(model.t)
 model.solar             = Param(model.t)
-model.costs             = Param(model.tech, initialize={'s_cap' : solar_cap_cost, 'ESS_power_cap' : ESS_p_cap_cost, 'ESS_energy_cap' : ESS_e_cap_cost})
+model.wind              = Param(model.t)
+model.costs             = Param(model.tech, initialize={'s_cap' : solar_cap_cost, 'w_cap' : wind_cap_cost, 'ESS_power_cap' : ESS_p_cap_cost, 'ESS_energy_cap' : ESS_e_cap_cost})
 
 ## load data into parameters, solar and wind data are houlry capacity factor data
 data = DataPortal()
-data.load(filename = 'opt_model_data/wind_solar_cf.csv', select = ('t', 'solar'), param = model.solar, index = model.t)
+data.load(filename = 'opt_model_data/2022_ERCOT_data.csv', select = ('t', 'demand', 'wind', 'solar'), param = (model.demand, model.wind, model.solar), index = model.t)
 
 ## define variables
 model.cap               = Var(model.tech, domain = NonNegativeReals)
@@ -53,7 +56,7 @@ model.OBJ = Objective(rule=obj_expression)
 
 # supply/demand match constraint
 def match_const(model, i):
-    return model.solar[i]*model.cap['s_cap'] + model.ESS_d[i] - model.ESS_c[i] - model.curt[i] - demand == 0   
+    return model.solar[i]*model.cap['s_cap'] + model.ESS_d[i] - model.ESS_c[i] - model.curt[i] - demand[i] == 0   
 model.match = Constraint(model.t, rule = match_const)
 
 # ESS charge/discharge constraint
@@ -92,7 +95,7 @@ status = opt.solve(model)
 
 # write model outputs to a JSON file
 model.solutions.store_to(status)
-status.write(filename='solar_storage.json', format='json')
+status.write(filename='HORNUNG_HWK3_OPT_OUTPUTS.json', format='json')
 
 # pyomo solve solar_storage_model.py --solver=glpk
 # pyomo solve solar_storage_model.py --solver=gurobi
