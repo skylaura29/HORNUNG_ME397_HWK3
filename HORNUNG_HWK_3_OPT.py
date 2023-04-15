@@ -22,10 +22,8 @@ ESS_p_var_cost          = 0.005e6     # ESS discharge cost $/GWh
 
 curtailment_cost        = 0.001e6     # curtailment penalty $/GWh
 
-#demand                  = 1000e6      # GW, how much power must the system deliver?
-
 # create the model
-model = AbstractModel(name = 'solar-storage model')
+model = AbstractModel(name = 'solar-wind-storage model')
 
 # create model sets
 model.t                 = Set(initialize = [i for i in range(8760)], ordered=True)    
@@ -56,7 +54,7 @@ model.OBJ = Objective(rule=obj_expression)
 
 # supply/demand match constraint
 def match_const(model, i):
-    return model.solar[i]*model.cap['s_cap'] + model.ESS_d[i] - model.ESS_c[i] - model.curt[i] - demand[i] == 0   
+    return model.solar[i]*model.cap['s_cap'] + model.wind[i]*model.cap['w_cap'] + model.ESS_d[i] - model.ESS_c[i] - model.curt[i] - model.demand[i] == 0   
 model.match = Constraint(model.t, rule = match_const)
 
 # ESS charge/discharge constraint
